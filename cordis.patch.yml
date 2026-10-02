@@ -1,0 +1,59 @@
+- insert:
+    - id: desktop-notify
+      name: dsh-desktop-notify
+      config:
+        # 总开关
+        enabled: true
+        # 各类事件的开关
+        classes:
+          approval: true
+          question: true
+          completion: true
+          failure: true
+          aborted: true
+        # 原生横幅是主通道（进通知中心）；自绘卡片兜底
+        channels:
+          toast: true
+          alert: true
+        # 双通道全开时一次提醒只弹一个：前台全屏 → 只弹卡片（全屏会压掉横幅
+        # 且不补弹），非全屏 → 只弹横幅。改 false 则卡片任何时候都显示（会重复）
+        alertOnlyWhenFullscreen: true
+        # 各类浮窗停留多少秒（授权/提问默认 30 秒；0 = 一直留到你点）
+        alertSeconds:
+          approval: 30
+          question: 30
+          failure: 25
+          aborted: 25
+          completion: 10
+        # 触发门：只有「窗口没聚焦，或聚焦的不是发出通知的那个对话」才提醒
+        gateOnFocus: true
+        # 客户端上报过期多久算“没在看”（毫秒）。客户端每 15 秒心跳一次。
+        backgroundGraceMs: 45000
+        # 短于该时长的回合不通知（过滤连续小回合刷屏）
+        minTurnMs: 5000
+        # 同一 (会话, 类别) 在该时间窗内只提醒一次
+        dedupeMs: 8000
+        # 等待类（授权/提问）独立去重窗口：session/event 主源、waterfall 冗余、
+        # turn/end blocked 兜底三条路汇进同一个 send()，窗口内只弹一条
+        waitingDedupeMs: 15000
+        # 全局最小发送间隔
+        minGapMs: 1500
+        # 回合结束后等待多久确认“真的空闲了”再判定完成。
+        # 这是完成类提醒延迟的大头：太短会在排队消息马上续回合时误报
+        settleMs: 400
+        # 「正看着被抑制」的复核补发窗口（毫秒）：事件那刻你在看那个对话，
+        # 窗口内切走了就补一条。只对授权/提问生效，0 = 关闭
+        recheckMs: 1800
+        # 宿主侧在场门控：客户端心跳过期/页面没开时，问一次 Windows——前台是
+        # DSH 就安静。心跳新鲜时仍以客户端的对话级判定为准
+        hostPresenceGate: true
+        # 子代理 / workflow 子会话是否也通知
+        notifySubagents: false
+        # 等你在场的事件（授权/提问）与失败/中止用常驻横幅；完成类自动消失
+        stickyBlocking: true
+        # 点击通知 → 把 DSH 唤到前台并落到那条通知对应的对话
+        clickToFocus: true
+        # 提示音：短促的系统提示音（toast 自带音效一律静音，避免又长又循环）
+        sound: true
+        # 把每次判定写入 ~/.dsh/dsh-desktop-notify.log，排查用
+        debug: true

@@ -1,0 +1,68 @@
+{
+  "name": "dsh-desktop-notify",
+  "version": "0.2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VoodooB0Ys/dsh-desktop-notify.git"
+  },
+  "homepage": "https://github.com/VoodooB0Ys/dsh-desktop-notify#readme",
+  "bugs": "https://github.com/VoodooB0Ys/dsh-desktop-notify/issues",
+  "description": "DeepSeek Harness 桌面提醒（Windows）：需要授权 / 提问 / 完成 / 出错 / 被中止时弹出提醒，点一下回到对应对话",
+  "type": "module",
+  "main": "lib/host.js",
+  "exports": {
+    ".": "./lib/host.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "lib/host.js",
+    "lib/client.js",
+    "lib/toast.ps1",
+    "lib/alert.ps1",
+    "lib/dsh-notify-probe.exe",
+    "lib/register-activator.ps1",
+    "lib/dsh-notify-activator.exe",
+    "lib/activator/NotifyActivator.cs",
+    "lib/activator/DshNotifyProbe.cs",
+    "tools/verify.mjs",
+    "tools/deploy.ps1",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "notification",
+    "windows"
+  ],
+  "license": "MIT",
+  "os": [
+    "win32"
+  ],
+  "scripts": {
+    "verify": "node tools/verify.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-scope": "0.2.0-rc.2"
+  },
+  "engines": {
+    "node": ">=24",
+    "dsh": "^0.2.0-rc.2"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

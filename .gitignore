@@ -1,0 +1,5 @@
+*.log
+node_modules/
+.dsh-tmp/
+# 调研/离线验证用的一次性工作目录（DSH asar 解包器 + cordis harness），不进版本库
+.tmp-asar/
