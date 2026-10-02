@@ -105,16 +105,18 @@ with `tools/deploy.ps1` afterwards anyway.
   Config-only changes (`cordis.patch.yml`) are re-read on plugin re-enable without a
   restart.
 
-## 3. Deployment topology — three copies
+## 3. Deployment topology — dev folder + GitHub clone (since 2026-10-02)
 
 | path | role |
 |---|---|
-| workspace repo | single source of truth (git) |
-| `%USERPROFILE%\.dsh\my-dsh\dsh-desktop-notify` | **the copy the profile loads** (profile `package.json` has `"dsh-desktop-notify": "link:C:/Users/.../my-dsh/..."` junction) |
-| `%USERPROFILE%\.dsh\plugins\dsh-desktop-notify` | plugin-manager clone, not used at runtime |
+| dev folder (this repo) | git source of truth, development only — **NOT loaded by DSH** |
+| `%USERPROFILE%\.dsh\plugins\dsh-desktop-notify` | **GitHub clone, what the profile actually loads** (profile `package.json` deps: `"link:.../plugins/dsh-desktop-notify"` → junction in `node_modules`) |
+| `~/.dsh/my-dsh/dsh-desktop-notify` | **deleted** 2026-10-02 (old generated copy; my-dsh still hosts two other plugins — dsh-eyecare-theme, dsh-fast-mode — don't touch those) |
 
-Deploy: `tools/deploy.ps1` (robocopy lib/ + top-level files), `-Restart` to restart
-the harness. Editing the workspace alone changes nothing at runtime.
+Update the installation: `git -C %USERPROFILE%\.dsh\plugins\dsh-desktop-notify pull`
+then restart the harness (`tools/deploy.ps1 -Restart` also re-checks the wiring:
+profile dep → junction → clone freshness). `tools/deploy.ps1` is no longer a sync
+tool — there is nothing to sync; the dev folder is never copied anywhere.
 
 ## 4. Restarting the Harness (Electron) — wrong vs correct
 

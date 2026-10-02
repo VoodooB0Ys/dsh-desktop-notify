@@ -1,64 +1,70 @@
 param(
-  # Restart DeepSeek Harness after the sync. Code changes (lib/*.js) are only
-  # picked up on restart - hot reload re-runs apply() but Node's ESM cache
-  # keeps serving the old module (verified 2026-10-01).
+  # Restart DeepSeek Harness after the checks. Code changes (lib/*.js) are only
+  # picked up on restart - hot reload re-runs apply() but Node's ESM cache keeps
+  # serving the old module (verified 2026-10-01).
   [switch]$Restart
 )
 
-# Sync the workspace copy of dsh-desktop-notify to the live directory that the
-# DeepSeek Harness desktop profile actually loads. The profile resolves
-# "dsh-desktop-notify" through a junction to ~/.dsh/my-dsh/dsh-desktop-notify,
-# so editing the workspace repo alone never changes runtime behavior.
+# Layout on this machine (since 2026-10-02):
 #
-# The workspace repo is the single source of truth; the live copy is generated.
+#   dev folder   <this repo>                       git source of truth, NOT loaded by DSH
+#   installed    %USERPROFILE%\.dsh\plugins\dsh-desktop-notify
+#                GitHub clone (gh repo clone), the junction target the profile loads
+#
+# Updating the installation:  git -C %USERPROFILE%\.dsh\plugins\dsh-desktop-notify pull
+# then restart the harness. This script checks the wiring and optionally restarts.
 
 $ErrorActionPreference = 'Stop'
 
-$source = Split-Path -Parent $PSScriptRoot
-$target = Join-Path $env:USERPROFILE '.dsh\my-dsh\dsh-desktop-notify'
+$profileDir = Join-Path $env:USERPROFILE '.dsh\profiles\desktop'
+$installed = Join-Path $env:USERPROFILE '.dsh\plugins\dsh-desktop-notify'
+$junction = Join-Path $profileDir 'node_modules\dsh-desktop-notify'
+$ok = $true
 
-if (-not (Test-Path -LiteralPath $target)) {
-  Write-Error "live directory not found: $target"
-  exit 1
+# 1. profile dependency points at the installed clone
+$pkg = Get-Content -Raw (Join-Path $profileDir 'package.json')
+if ($pkg -match 'dsh-desktop-notify"\s*:\s*"link:[^"]*plugins/dsh-desktop-notify"') {
+  Write-Host 'ok   profile dependency -> plugins clone'
+} else {
+  Write-Warning 'profile dependency does not point at the plugins clone'
+  $ok = $false
 }
 
-# Remember the exe path while the app is still running, so the restart can
-# relaunch exactly the installation that was in use.
-$exes = @(Get-Process -Name 'DeepSeek Harness' -ErrorAction SilentlyContinue |
-  Where-Object { $_.Path } |
-  Select-Object -ExpandProperty Path -Unique)
-$exePath = if ($exes.Count -gt 0) { $exes[0] } else { 'D:\DSH\DeepSeek Harness.exe' }
-
-Write-Host "source: $source"
-Write-Host "target: $target"
-
-robocopy (Join-Path $source 'lib') (Join-Path $target 'lib') /E /NJH /NJS /NDL /NFL /NP | Out-Null
-$rc = $LASTEXITCODE
-# robocopy exit codes 0-7 are success (1 = files copied, 3 = copied + extras...)
-if ($rc -ge 8) {
-  Write-Error "robocopy failed with exit code $rc"
-  exit 1
+# 2. junction target
+$target = (Get-Item -LiteralPath $junction -Force).Target
+if (-not $target) {
+  # PS 5.1 does not always populate .Target for junctions; fall back to dir output
+  $dirLine = cmd /c "dir ""$profileDir\node_modules"" | findstr /i desktop-notify"
+  if ($dirLine -match '\[(.+)\]\s*$') { $target = @($Matches[1]) }
 }
-Write-Host "lib/ synced (robocopy exit $rc)"
-
-foreach ($name in @('cordis.patch.yml', 'package.json', 'README.md', 'README.en.md')) {
-  $file = Join-Path $source $name
-  if (Test-Path -LiteralPath $file) {
-    Copy-Item -LiteralPath $file -Destination (Join-Path $target $name) -Force
-    Write-Host "copied  $name"
-  }
+if ($target -and ($target | Where-Object { $_ -ieq $installed })) {
+  Write-Host 'ok   junction -> plugins clone'
+} else {
+  Write-Warning "junction target is '$($target -join ',')', expected '$installed'"
+  $ok = $false
 }
+
+# 3. installed clone is on latest main
+$ErrorActionPreference = 'Continue'
+git -C $installed fetch origin main 2>&1 | Out-Null
+$behind = git -C $installed rev-list --count main..origin/main 2>&1
+$ErrorActionPreference = 'Stop'
+if ("$behind" -eq '0') {
+  Write-Host 'ok   installed clone is up to date with origin/main'
+} else {
+  Write-Warning "installed clone is $behind commit(s) behind origin/main - run: git -C `"$installed`" pull"
+  $ok = $false
+}
+
+if (-not $ok) { exit 1 }
+Write-Host 'wiring OK.'
 
 if (-not $Restart) {
-  Write-Host 'done. NOTE: lib code changes require a Harness restart to take effect (use -Restart).'
+  Write-Host 'run with -Restart to restart DeepSeek Harness (needed after lib/*.js changes).'
   exit 0
 }
 
-Write-Host "restarting DeepSeek Harness ($exePath)..."
-# Electron's child processes have no window and refuse a graceful taskkill, and the
-# app parks itself in the tray when its window closes - so: close the main window,
-# give it a moment, then force-stop whatever is left (state is persisted to disk
-# continuously, so this loses nothing but in-memory UI state).
+Write-Host 'restarting DeepSeek Harness...'
 $procs = Get-Process -Name 'DeepSeek Harness' -ErrorAction SilentlyContinue
 $main = $procs | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
 if ($main) {
@@ -73,5 +79,5 @@ if ($left) {
   Start-Sleep -Seconds 2
 }
 Start-Sleep -Milliseconds 500
-Start-Process -FilePath $exePath
-Write-Host 'relaunched. Give it ~20s to boot, then check ~/.dsh/dsh-desktop-notify.log for a fresh "plugin loaded" line.'
+Start-Process -FilePath 'D:\DSH\DeepSeek Harness.exe'
+Write-Host 'relaunched. Check ~/.dsh/dsh-desktop-notify.log for a fresh "plugin loaded" line.'
