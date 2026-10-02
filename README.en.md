@@ -79,8 +79,9 @@ github:VoodooB0Ys/dsh-desktop-notify
 
 ### Option C: manual (option A spelled out)
 
-1. Clone it to a permanent location (not somewhere a "cleanup tool" might recursively
-   delete — see the junction warning below):
+1. Clone it to a permanent location (this folder becomes the link target inside the
+   profile — keep a copy of it, and don't "clean" it with link-following tools;
+   if it ever disappears, re-cloning is enough):
 
    ```bash
    git clone https://github.com/VoodooB0Ys/dsh-desktop-notify D:\tools\dsh-desktop-notify
@@ -121,41 +122,6 @@ github:VoodooB0Ys/dsh-desktop-notify
 
 Nothing else is machine specific: no absolute paths are stored anywhere in the plugin,
 and the notification identity is created per-user in `HKCU` on first use.
-
-## Development: making code changes take effect
-
-On this machine the plugin exists as **three copies**; know which one you are editing:
-
-| Path | Role |
-|---|---|
-| The workspace repo (this folder) | the single source of truth, under git |
-| `%USERPROFILE%\.dsh\my-dsh\dsh-desktop-notify` | **the copy the profile actually loads** (via a link junction) |
-| `%USERPROFILE%\.dsh\plugins\dsh-desktop-notify` | a plugin-manager clone, not involved at runtime |
-
-Sync from the workspace to the live directory:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1          # sync only
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Restart # sync + restart the harness
-```
-
-> **Warning**: the profile depends on the plugin via `link:` (a junction). Another
-> plugin's README documents a real accident where an uninstall's recursive delete
-> followed the junction and wiped the junction target. Here the target is a
-> generated copy (the workspace repo is the source of truth), but do not empty a
-> profile's `node_modules` with a link-following tool — and re-run deploy afterwards.
-
-After editing `lib/*.js` you **must restart the harness** — hot reload re-runs `apply()`
-but Node's ESM cache keeps serving the old module (verified). Config changes in
-`cordis.patch.yml` do not need a restart; re-enabling the plugin re-reads them.
-After editing `lib/activator/DshNotifyProbe.cs`, rebuild the probe (csc — the
-command is in the file header).
-
-Offline verification (no real windows; asserts gating / dedupe / delivery flags):
-
-```bash
-npm run verify
-```
 
 ## Click behaviour
 
@@ -278,19 +244,7 @@ trace, not assumed:
 |---|---|
 | `activationType="protocol"` + a registered URI scheme | The handler works when invoked by hand, but a real banner click never reached it: Windows does not delegate the click for unpackaged apps |
 | A resident process subscribing to the toast's `Activated` event | A PowerShell host never receives it. A programmatic dismiss produced no `Dismissed` event either, so the event pump cannot deliver here at all |
-| **A COM local server registered as the AUMID's `CustomActivator`** | **Works.** Windows launches `lib/dsh-notify-activator.exe`, which hands the conversation id to the host and raises the window |
-
-The activator is compiled as a **winexe** on purpose: a console-subsystem binary flashes
-a black window on every click. Rebuild it with the compiler that ships with .NET
-Framework:
-
-```powershell
-& "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" -nologo -optimize+ `
-  -target:winexe -platform:x64 -out:lib\dsh-notify-activator.exe lib\activator\NotifyActivator.cs
-```
-
-`lib/register-activator.ps1` registers (and verifies) the COM half by hand if needed.
-
+| **A COM local server registered as the AUMID's `CustomActivator`** | **Works.** Windows launches `lib/dsh-notify-activator.exe`, which hands the conversation id to the host; the client half then opens that conversation |
 ## Known limitations
 
 - **Windows only**, x64. The activator is a .NET Framework 4 x64 binary.

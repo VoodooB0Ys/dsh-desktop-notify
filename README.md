@@ -85,7 +85,8 @@ github:VoodooB0Ys/dsh-desktop-notify
 
 ### 方式三：手动（就是方式一展开）
 
-1. 克隆到任意固定位置（别放在会被"清理工具"递归删除的地方，见下文 junction 警告）：
+1. 克隆到任意固定位置（这个目录会成为 profile 里 link 的目标，别只存这一份、也别用
+   会跟随链接"清理"它的工具——丢了重新 clone 就是）：
 
    ```bash
    git clone https://github.com/VoodooB0Ys/dsh-desktop-notify D:\tools\dsh-desktop-notify
@@ -124,38 +125,6 @@ github:VoodooB0Ys/dsh-desktop-notify
 
 除此之外没有任何跟机器绑定的东西：插件里不存任何绝对路径，通知身份是运行时在
 `HKCU` 里按当前用户创建的。
-
-## 开发：改完代码怎么生效
-
-这套插件在你机器上实际有**三份副本**，别改错地方：
-
-| 路径 | 角色 |
-|---|---|
-| 工作区仓库（本目录） | 唯一源，git 管理的就是它 |
-| `%USERPROFILE%\.dsh\my-dsh\dsh-desktop-notify` | **profile 实际加载的那份**（通过 link junction） |
-| `%USERPROFILE%\.dsh\plugins\dsh-desktop-notify` | 插件管理器装的克隆，不参与运行 |
-
-从工作区同步到 live 目录：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1          # 只同步
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\deploy.ps1 -Restart # 同步并重启 Harness
-```
-
-> **警告**：profile 对插件用的是 `link:`（junction）。曾有同类插件的用户在卸载时
-> 被递归删除跟随链接、把 junction 指向的目录整个删掉。这里指向的是生成的副本、
-> 损失可控，但**不要用会跟随链接的工具清空 profile 的 `node_modules`**；清完记得
-> 重新 deploy。
-
-改 `lib/*.js` 后**必须重启 Harness**——热重载只会重跑 `apply()`，Node 的 ESM 缓存
-不会失效（实测）。改 `cordis.patch.yml` 的配置项不用重启，重新启用一次插件即可。
-改 `lib/activator/DshNotifyProbe.cs` 后要重建探针（csc，命令见文件头注释）。
-
-离线验证（不弹真窗，断言触发门 / 去重 / 投递参数）：
-
-```bash
-npm run verify
-```
 
 ## 点击行为
 
@@ -265,17 +234,7 @@ HKCU\Software\Classes\CLSID\{D7A1F0B2-3C4D-4E5F-9A0B-1C2D3E4F5A6B}   （只有�
 |---|---|
 | `activationType="protocol"` + 注册 URI 协议 | 手动执行这条 URI 每次都成功，但**真实点击横幅从来没有到过处理器**——Windows 对未打包应用不做这个转交 |
 | 常驻进程订阅通知的 `Activated` 事件 | PowerShell 宿主收不到：用一个不需要点击的等价实验（程序化关闭通知）验证，连 `Dismissed` 都收不到，事件泵根本投递不进这个进程 |
-| **注册成 AUMID 的 `CustomActivator` 的 COM 本地服务器** | **可用**——Windows 会启动 `lib/dsh-notify-activator.exe`，由它把对话 id 交给宿主并把窗口唤前 |
-
-激活器刻意编译成 **winexe**：控制台子系统每次点击都会闪一个黑框。用 .NET Framework
-自带的编译器重建：
-
-```powershell
-& "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" -nologo -optimize+ `
-  -target:winexe -platform:x64 -out:lib\dsh-notify-activator.exe lib\activator\NotifyActivator.cs
-```
-
-`lib/register-activator.ps1` 可以手动注册（并校验）COM 那半边。
+| **注册成 AUMID 的 `CustomActivator` 的 COM 本地服务器** | **可用**——Windows 会启动 `lib/dsh-notify-activator.exe`，由它把对话 id 交给宿主，客户端再切到那个对话 |
 
 ## 已知限制
 
